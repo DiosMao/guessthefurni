@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guess the furni</title>
+    <style>
+        body {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        .container,
+        .btn-container {
+            width: 100%;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            display: flex;
+            justify-content: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .container {
+            justify-content: center;
+            margin-bottom: 0px;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 408px;
+            height: 196px;
+            background: url('zzzz.png') no-repeat;
+            background-size: cover;
+            border: 1px solid #000;
+            margin: 0 10px;
+            flex-shrink: 0;
+        }
+
+        .canvas-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .btn-container input,
+        .btn-container button {
+            margin-right: 10px;
+        }
+
+        .image-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .image-gallery img {
+            object-fit: none;
+            cursor: pointer;
+        }
+
+        #reloadButton {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="canvas-container" id="canvasContainer1">
+            <canvas id="canvas1"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="canvas2"></canvas>
+        </div>
+    </div>
+
+    <div class="btn-container">
+        <input type="file" id="upload" accept="image/jpeg, image/png, image/gif" />
+        <input type="text" id="urlInput" placeholder="Enter image URL" />
+        <button id="loadUrlButton">Load from URL</button>
+    </div>
+<button id="reloadButton">Reload the page to load different furni</button>
+    <div class="image-gallery"></div>
+
+    <script>
+        const imageUrls = [];
+        // Fetch image URLs from zzzhappy.txt
+        fetch('zzzhappy.txt')
+        .then(response => response.text())
+        .then(text => {
+        // Split by comma, remove quotes, and trim spaces
+        imageUrls.push(...text
+        .split(',')
+        .map(url => url.replace(/['"]/g, '').trim())
+        .filter(url => url.length > 0)); // Ensure no empty strings are added
+        // Start loading images after URLs are fetched
+        loadImages(imagesPerLoad);
+        })
+        .catch(error => console.error('Error fetching image URLs:', error));
+        const canvas1 = document.getElementById('canvas1');
+        const canvas2 = document.getElementById('canvas2');
+        const ctx1 = canvas1.getContext('2d');
+        const ctx2 = canvas2.getContext('2d');
+        let image = new Image();
+        let offsetX = 0,
+            offsetY = 0;
+        let isDragging = false;
+        const imagesPerLoad = 12; // Changed to load some images at a time
+
+        function setCanvasSize() {
+            const width = 408;
+            const height = 196;
+            canvas1.width = width;
+            canvas1.height = height;
+            canvas2.width = width;
+            canvas2.height = height;
+
+            
+        }
+
+        function drawImage() {
+            ctx1.clearRect(0, 0, canvas1.width, canvas1.height);
+            ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+
+            ctx1.drawImage(image, offsetX, offsetY, image.width, image.height);
+            ctx2.drawImage(image, offsetX, offsetY, image.width, image.height);
+
+            ctx2.globalCompositeOperation = 'source-in';
+            ctx2.fillStyle = 'black';
+            ctx2.fillRect(0, 0, canvas2.width, canvas2.height);
+            ctx2.globalCompositeOperation = 'source-over';
+        }
+
+        function updateImagePosition(e) {
+            if (!isDragging) return;
+            const rect = canvas1.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            offsetX = x - image.width / 2;
+            offsetY = y - image.height / 2;
+            drawImage();
+        }
+
+        canvas1.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            updateImagePosition(e);
+        });
+        canvas1.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        canvas1.addEventListener('mousemove', updateImagePosition);
+
+        function loadImage(src) {
+            image.src = src;
+            image.onload = function () {
+                setCanvasSize();
+                offsetX = (canvas1.width - image.width) / 2;
+                offsetY = (canvas1.height - image.height) / 2;
+                drawImage();
+            };
+        }
+
+        document.getElementById('upload').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                loadImage(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        });
+
+        document.getElementById('loadUrlButton').addEventListener('click', () => {
+            const url = document.getElementById('urlInput').value;
+            if (url) {
+                loadImage(url);
+                document.getElementById('urlInput').value = '';
+            }
+        });
+
+        let loadedImages = [];
+
+        function loadImages(count) {
+            const container = document.querySelector('.image-gallery');
+            let remainingImages = imageUrls.filter(url => !loadedImages.includes(url));
+            let imagesToLoad = remainingImages.sort(() => 0.5 - Math.random()).slice(0, count);
+
+            imagesToLoad.forEach(url => {
+                const img = document.createElement('img');
+                img.src = url;
+                img.draggable = true;
+                img.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', url);
+                });
+                container.appendChild(img);
+                loadedImages.push(url);
+            });
+
+            if (loadedImages.length >= imageUrls.length) {
+                document.getElementById('reloadButton').disabled = true;
+            }
+        }
+
+        document.getElementById('reloadButton').addEventListener('click', () => {
+            location.reload();
+        });
+
+        const canvasContainer1 = document.getElementById('canvasContainer1');
+        canvasContainer1.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        canvasContainer1.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const url = e.dataTransfer.getData('text/plain');
+            if (url) {
+                loadImage(url);
+            }
+        });
+
+        window.addEventListener('load', () => {
+            if (imageUrls.length) {
+                loadImages(imagesPerLoad);
+            }
+        });
+    </script>
+</body>
+
+</html>
